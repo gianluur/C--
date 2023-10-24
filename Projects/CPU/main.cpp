@@ -97,7 +97,6 @@ public:
         }
         return memory[dec_address][1];
     }
-
     Address value_to_address(uint8_t value)
     {
         Data data = dec_to_data(value);
