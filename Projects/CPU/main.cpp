@@ -8,6 +8,7 @@
 using namespace std;
 
 typedef string Address;
+typedef string OPCode;
 typedef uint8_t Size;
 
 string dec_to_bin(int dec)
@@ -78,6 +79,15 @@ public:
         return memory[dec_address][1];
     }
 
+    OPCode write_opcode(uint8_t dec_address, OPCode opcode)
+    {
+        if (check_address(dec_address))
+        {
+            memory[dec_address][1].replace(0, 4, opcode);
+            cout << "Memory Updated (Write)" << endl;
+        }
+        return memory[dec_address][1];
+    }
     Data remove(uint8_t dec_address)
     {
         if (check_address(dec_address))
@@ -209,47 +219,43 @@ private:
 
 class CPU
 {
+    typedef int Data;
+    typedef int Register;
+    typedef bool Flag;
+
 public:
-    CPU(const uint8_t ARCHITECTURE, const uint8_t ADDRESS_SIZE, const uint8_t OPCODE_SIZE)
+    CPU(const uint8_t ARCHITECTURE, const uint8_t ADDRESS_SIZE, const uint8_t OPCODE_SIZE, RAM &MEMORY)
     {
         Size architecutre = ARCHITECTURE;
         Size address_size = ADDRESS_SIZE;
         Size opcode_size = OPCODE_SIZE;
+        RAM ram = MEMORY;
     }
 
-    typedef int Data;
-    typedef string OPCode;
-    typedef int Register;
-    typedef bool Flag;
+private:
+    struct Registers
+    {
+        Register A;
+        Register B;
+    };
+    Registers regist;
 
-    struct Instructions
+    struct Flags
+    {
+        Flag zero;
+        Flag positive;
+        Flag negative;
+    };
+    Flags flag;
+
+    struct OPCodes
     {
         OPCode LOAD = "0001";
         OPCode ADD = "0010";
         OPCode SUB = "0011";
-        OPCode MUL;
-        OPCode DIV;
         OPCode STORE = "0100";
-        OPCode COMPARE = "0101";
-        OPCode JUMP = "1000";
-        OPCode JUMP_IF = "1001";
-        OPCode OUT = "1111";
-        OPCode IN = "1110";
     };
-
-    class ALU
-    {
-    };
-    class CU
-    {
-    public:
-    private:
-    };
-
-private:
-    Size architecutre;
-    Size address_size;
-    Size opcode_size;
+    OPCodes opcode;
 };
 
 class InputSystem
@@ -257,16 +263,24 @@ class InputSystem
     typedef string Data;
 
 public:
+    InputSystem(RAM &MEMORY) : ram(MEMORY) {}
     vector<Data> getInput()
     {
         cout << "Waiting for input: " << endl;
         getline(cin, input);
-        return input_to_data(input);
+        vector<Data> ready_to_load = input_to_data(input);
+        ram.write(0, ready_to_load[0]);
+        ram.write_opcode(0, "0001");
+        ram.write(1, ready_to_load[1]);
+        ram.write_opcode(0, "0001");
+        ram.write_opcode(2, ready_to_load[2]);
+        ram.read_memory();
+        return ready_to_load;
     }
 
 private:
+    RAM &ram;
     string input;
-
     vector<Data> input_to_data(string input)
     {
         string formatted_input;
@@ -282,7 +296,8 @@ private:
         istringstream iss(formatted_input);
         int num1 = 0, num2 = 0;
         char op = '\0';
-        Data first_number, second_number, operation_code;
+        Data first_number, second_number;
+        OPCode operation_code;
         vector<Data> data;
 
         if (iss >> num1 >> op >> num2)
@@ -316,11 +331,6 @@ private:
 
 void Bus(CPU cpu, RAM ram, InputSystem input)
 {
-    typedef string Data;
-    vector<Data> ready_to_load = input.getInput();
-    ram.write(0, ready_to_load[0]);
-    ram.write(1, ready_to_load[1]);
-    ram.read_memory();
 }
 
 void Output()
@@ -334,10 +344,9 @@ int main()
     const uint8_t OPCODE_SIZE = 4;
     const uint8_t RAM_SIZE = 16;
     RAM ram(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, RAM_SIZE);
-    CPU cpu(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE);
-    InputSystem input;
+    CPU cpu(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, ram);
+    InputSystem input(ram);
     cout << "Welcome to CPU Simulator" << endl;
-    Bus(cpu, ram, input);
     // Output();
 
     return 0;
