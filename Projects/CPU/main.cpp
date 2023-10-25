@@ -219,7 +219,7 @@ private:
 class CPU
 {
     typedef int Data;
-    typedef int Register;
+    typedef string Register;
     typedef bool Flag;
 
 public:
@@ -231,11 +231,10 @@ public:
         RAM ram = MEMORY;
     }
 
-private:
     struct Registers
     {
-        Register A;
-        Register B;
+        Register A = "01";
+        Register B = "10";
     };
     Registers regist;
 
@@ -255,6 +254,8 @@ private:
         OPCode STORE = "0100";
     };
     OPCodes opcode;
+
+private:
 };
 
 class InputSystem
@@ -262,23 +263,25 @@ class InputSystem
     typedef string Data;
 
 public:
-    InputSystem(RAM &MEMORY) : ram(MEMORY) {}
+    InputSystem(RAM &MEMORY, CPU &CPU) : ram(MEMORY), cpu(CPU) {}
     vector<Data> getInput()
     {
         cout << "Waiting for input: " << endl;
         getline(cin, input);
         vector<Data> ready_to_load = input_to_data(input);
+        ram.write_opcode(0, "0001");
         ram.write(0, ready_to_load[0]);
-        ram.write_opcode(0, "0001");
+        ram.write_opcode(1, "0001");
         ram.write(1, ready_to_load[1]);
-        ram.write_opcode(0, "0001");
-        ram.write_opcode(2, ready_to_load[2]);
+        ram.write_opcode(2, cpu.opcode.LOAD);
+        ram.write(2, cpu.regist.A + cpu.regist.B);
         ram.read_memory();
         return ready_to_load;
     }
 
 private:
     RAM &ram;
+    CPU &cpu;
     string input;
     vector<Data> input_to_data(string input)
     {
@@ -344,8 +347,9 @@ int main()
     const uint8_t RAM_SIZE = 16;
     RAM ram(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, RAM_SIZE);
     CPU cpu(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, ram);
-    InputSystem input(ram);
+    InputSystem input(ram, cpu);
     cout << "Welcome to CPU Simulator" << endl;
+    vector<string> data = input.getInput();
     // Output();
 
     return 0;
