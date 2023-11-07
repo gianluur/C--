@@ -23,4 +23,5 @@ int main()
     }
     prezzo -= (prezzo * sconto);
     cout << "Sul vostro acqiusto e' stato applicato uno sconto del " << sconto * 100 << "% Il prezzo scontato è: " << prezzo << "€" << endl;
+    return 0;
 }

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <sstream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -31,13 +32,14 @@ class RAM
 public:
     typedef string Data;
     typedef vector<vector<Data>> Memory;
-    RAM(const uint8_t ARCHITECTURE, const uint8_t ADDRESS_SIZE, const uint8_t OPCODE_SIZE, const uint8_t RAM_SIZE)
+    RAM(const uint8_t RAM_SIZE)
     {
-        Size architecutre = ARCHITECTURE;
-        Size address_size = ADDRESS_SIZE;
-        Size opcode_size = OPCODE_SIZE;
         Size size = RAM_SIZE;
         memory = create_memory(size);
+    }
+    Memory get_memory()
+    {
+        return memory;
     }
     Memory read_memory()
     {
@@ -186,21 +188,6 @@ private:
         int dec = stoi(data, nullptr, 2);
         return dec;
     }
-    int bin_to_dec(Data data)
-    {
-        int decimal = 0;
-        int power = 0;
-
-        for (int i = data.length() - 1; i >= 0; --i)
-        {
-            if (data[i] == '1')
-            {
-                decimal += (1 << power);
-            }
-            power++;
-        }
-        return decimal;
-    }
     bool check_address(uint8_t dec_address)
     {
         Address address = dec_to_address(dec_address);
@@ -223,14 +210,7 @@ class CPU
     typedef bool Flag;
 
 public:
-    CPU(const uint8_t ARCHITECTURE, const uint8_t ADDRESS_SIZE, const uint8_t OPCODE_SIZE, RAM &MEMORY)
-    {
-        Size architecutre = ARCHITECTURE;
-        Size address_size = ADDRESS_SIZE;
-        Size opcode_size = OPCODE_SIZE;
-        RAM ram = MEMORY;
-    }
-
+    CPU(RAM &MEMORY) : ram(MEMORY) {}
     struct Registers
     {
         Register A = "01";
@@ -246,16 +226,78 @@ public:
     };
     Flags flag;
 
-    struct OPCodes
+    // Using unordered_map instead of a struct for efficiency
+    unordered_map<string, string> opcode = {
+        {"LOAD", "0001"},
+        {"ADD", "0010"},
+        {"SUB", "0011"},
+        {"STORE", "0100"},
+        {"HALT", "1111"}};
+
+    vector<vector<string>> fetch(vector<string> data)
     {
-        OPCode LOAD = "0001";
-        OPCode ADD = "0010";
-        OPCode SUB = "0011";
-        OPCode STORE = "0100";
-    };
-    OPCodes opcode;
+        vector<vector<string>> fetched_memory = ram.get_memory();
+        vector<vector<string>> simplified_memory;
+
+        if (fetched_memory[fetched_memory.size() - 1][1].substr(4, 4) == opcode["HALT"])
+        {
+            simplified_memory = fetched_memory;
+        }
+        else
+        {
+            for (int i = 0; i < fetched_memory.size(); i++)
+            {
+                if (fetched_memory[i][1].substr(0, 4) == opcode["HALT"])
+                {
+                    break;
+                }
+                simplified_memory.push_back({fetched_memory[i][0], fetched_memory[i][1]});
+            }
+        }
+        // TEST PURPOSES
+        cout << simplified_memory.size() << endl;
+        for (int i = 0; i < simplified_memory.size(); i++)
+        {
+            cout << "Address: " << simplified_memory[i][0] << " | Value: " << simplified_memory[i][1] << endl;
+        }
+        return simplified_memory;
+    }
 
 private:
+    RAM &ram;
+    int bin_to_dec(string data)
+    {
+        int decimal = 0;
+        int power = 0;
+
+        for (int i = data.length() - 1; i >= 0; --i)
+        {
+            if (data[i] == '1')
+            {
+                decimal += (1 << power);
+            }
+            power++;
+        }
+        return decimal;
+    }
+
+    OPCode read_opcode(uint8_t dec_address)
+    {
+        string memory_cell = ram.read(dec_address);
+        memory_cell = memory_cell.substr(0, 4);
+
+        auto iterator = opcode.find(memory_cell); // Return the iterator containg the opcode in map
+        if (iterator != opcode.end())
+        {
+            return iterator->second; // if found the value (ADD: "0010") returns "0010"
+        }
+    }
+    Data read_value(uint8_t dec_address)
+    {
+        string memory_cell = ram.read(dec_address);
+        memory_cell = memory_cell.substr(4, 4);
+        return bin_to_dec(memory_cell);
+    }
 };
 
 class InputSystem
@@ -269,12 +311,13 @@ public:
         cout << "Waiting for input: " << endl;
         getline(cin, input);
         vector<Data> ready_to_load = input_to_data(input);
-        ram.write_opcode(0, "0001");
+        ram.write_opcode(0, cpu.opcode["LOAD"]);
         ram.write(0, ready_to_load[0]);
-        ram.write_opcode(1, "0001");
+        ram.write_opcode(1, cpu.opcode["LOAD"]);
         ram.write(1, ready_to_load[1]);
-        ram.write_opcode(2, cpu.opcode.LOAD);
+        ram.write_opcode(2, ready_to_load[2]);
         ram.write(2, cpu.regist.A + cpu.regist.B);
+        ram.write_opcode(3, cpu.opcode["HALT"]);
         ram.read_memory();
         return ready_to_load;
     }
@@ -318,10 +361,10 @@ private:
         switch (op)
         {
         case '+':
-            operation_code = "0010";
+            operation_code = cpu.opcode["ADD"];
             break;
         case '-':
-            operation_code = "0011";
+            operation_code = cpu.opcode["SUB"];
         default:
             break;
         }
@@ -341,15 +384,13 @@ void Output()
 
 int main()
 {
-    const uint8_t ARCHITECTURE = 8;
-    const uint8_t ADDRESS_SIZE = 8;
-    const uint8_t OPCODE_SIZE = 4;
     const uint8_t RAM_SIZE = 16;
-    RAM ram(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, RAM_SIZE);
-    CPU cpu(ARCHITECTURE, ADDRESS_SIZE, OPCODE_SIZE, ram);
+    RAM ram(RAM_SIZE);
+    CPU cpu(ram);
     InputSystem input(ram, cpu);
     cout << "Welcome to CPU Simulator" << endl;
     vector<string> data = input.getInput();
+    cpu.fetch(data);
     // Output();
 
     return 0;
